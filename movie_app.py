@@ -24,82 +24,97 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# 1. Your Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 st.title("🎬 Library Manager")
+
+# Library Selector
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# FIXED: Using numbers (0 for first tab, 1 for second tab) is more reliable than names
-worksheet_index = 0 if library_type == "Movies" else 1
+# We define the worksheet names exactly as they appear in Google Sheets
+# If your first tab isn't named "Movies", change that word below to match your tab name.
+ws_name = "Movies" if library_type == "Movies" else "TV Shows"
+
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Read the sheet using the index
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_index, ttl=0) 
-    df.columns = df.columns.str.strip()
+    # 2. Fetch Data with Error Handling
+    # We use ttl=0 to ensure we aren't seeing an old "400 error" cached in memory
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0) 
     
-    # Identify columns based on which library is active
-    if library_type == "Movies":
-        item_col = "Movie" if "Movie" in df.columns else df.columns[0]
-    else:
-        item_col = "Show" if "Show" in df.columns else df.columns[0]
+    if df is not None:
+        df.columns = df.columns.str.strip()
         
-    format_col = "Format" if "Format" in df.columns else None
-    status_col = "Status" if "Status" in df.columns else None
-    
-    full_df = df.dropna(subset=[item_col])
-    items_list = full_df[item_col].tolist()
+        # Determine column names
+        item_col = "Movie" if library_type == "Movies" else "Show"
+        if item_col not in df.columns:
+            item_col = df.columns[0] # Fallback to first column
+            
+        format_col = "Format" if "Format" in df.columns else None
+        status_col = "Status" if "Status" in df.columns else None
+        
+        full_df = df.dropna(subset=[item_col])
+        items_list = full_df[item_col].astype(str).tolist()
 
-    def display_item(row):
-        title = str(row[item_col])
-        fmt = str(row[format_col]).upper().strip() if format_col else "SD"
-        status = str(row[status_col]) if status_col and not pd.isna(row[status_col]) else ""
-        badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
-        search_term = urllib.parse.quote(title)
-        url = f"https://www.imdb.com/find?q={search_term}"
-        status_html = f"<span class='badge-status'>{status}</span>" if status else ""
-        st.markdown(f"🎞️ <a href='{url}' target='_blank' class='movie-link'>{title}</a> <span class='{badge_class}'>{fmt}</span> {status_html}", unsafe_allow_html=True)
+        # --- HELPER DISPLAY ---
+        def display_item(row):
+            title = str(row[item_col])
+            fmt = str(row[format_col]).upper().strip() if format_col and not pd.isna(row[format_col]) else "SD"
+            status = str(row[status_col]) if status_col and not pd.isna(row[status_col]) else ""
+            badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
+            search_term = urllib.parse.quote(title)
+            url = f"https://www.imdb.com/find?q={search_term}"
+            status_html = f"<span class='badge-status'>{status}</span>" if status else ""
+            st.markdown(f"🎞️ <a href='{url}' target='_blank' class='movie-link'>{title}</a> <span class='{badge_class}'>{fmt}</span> {status_html}", unsafe_allow_html=True)
 
-    # --- TOP HEADER ---
-    with st.container():
-        h_col1, h_col2, h_col3 = st.columns([1, 1, 1])
-        with h_col1:
-            st.metric(f"Total {library_type}", len(items_list))
-        with h_col2:
-            if st.button("🔄 Sync", use_container_width=True):
-                st.cache_data.clear()
-                st.rerun()
-            local_now = datetime.now(USER_TZ).strftime("%I:%M %p")
-            st.markdown(f"<p class='sync-text'>Updated: {local_now} CT</p>", unsafe_allow_html=True)
-        with h_col3:
-            if st.button("🎲 Roulette", use_container_width=True):
-                st.session_state.random_pick = random.choice(items_list)
-                st.balloons()
+        # --- TOP HEADER ---
+        with st.container():
+            h_col1, h_col2, h_col3 = st.columns([1, 1, 1])
+            with h_col1:
+                st.metric(f"Total {library_type}", len(items_list))
+            with h_col2:
+                if st.button("🔄 Sync", use_container_width=True):
+                    st.cache_data.clear()
+                    st.rerun()
+                local_now = datetime.now(USER_TZ).strftime("%I:%M %p")
+                st.markdown(f"<p class='sync-text'>Updated: {local_now} CT</p>", unsafe_allow_html=True)
+            with h_col3:
+                if st.button("🎲 Roulette", use_container_width=True):
+                    st.session_state.random_pick = random.choice(items_list)
+                    st.balloons()
 
-    if 'random_pick' in st.session_state:
-        st.info(f"✨ Suggested {library_type}: {st.session_state.random_pick}")
+        if 'random_pick' in st.session_state:
+            st.info(f"✨ Suggested {library_type}: {st.session_state.random_pick}")
 
-    st.markdown("---")
+        st.markdown("---")
 
-    # --- TABS ---
-    t1, t2, t3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 All"])
+        # --- TABS ---
+        t1, t2, t3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 All"])
 
-    with t1:
-        search_query = st.text_input("Search", label_visibility="collapsed", placeholder=f"Search {library_type}...")
-        if search_query:
-            results = full_df[full_df[item_col].str.contains(search_query, case=False, na=False)]
-            for _, row in results.iterrows():
+        with t1:
+            search_query = st.text_input("Search", label_visibility="collapsed", placeholder=f"Search {library_type}...")
+            if search_query:
+                # Basic filter for results
+                results = full_df[full_df[item_col].str.contains(search_query, case=False, na=False)]
+                if not results.empty:
+                    for _, row in results.iterrows():
+                        display_item(row)
+                else:
+                    st.write("No results found.")
+
+        with t2:
+            recent = full_df.tail(10).iloc[::-1]
+            for _, row in recent.iterrows():
                 display_item(row)
 
-    with t2:
-        for _, row in full_df.tail(10).iloc[::-1].iterrows():
-            display_item(row)
-
-    with t3:
-        for _, row in full_df.sort_values(item_col).iterrows():
-            display_item(row)
+        with t3:
+            sorted_df = full_df.sort_values(item_col)
+            for _, row in sorted_df.iterrows():
+                display_item(row)
 
 except Exception as e:
-    st.error("Could not find the data.")
-    st.write("Please ensure your Google Sheet has at least TWO tabs at the bottom.")
+    st.error("⚠️ Connection Error (400)")
+    st.write(f"The app is having trouble reading the **{library_type}** tab.")
+    st.info("Check: Is your movie tab named 'Sheet1' and your TV tab named 'TV Shows'?")
     st.code(e)
