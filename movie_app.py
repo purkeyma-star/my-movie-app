@@ -32,19 +32,23 @@ st.title("🎬 Library Manager")
 # Library Selector
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# THE FIX: We use urllib.parse.quote to turn "TV Shows" into "TV%20Shows"
-raw_ws_name = "Movies" if library_type == "Movies" else "TV Shows"
-encoded_ws_name = urllib.parse.quote(raw_ws_name)
+# FIX: We use "TVShows" (no space) to match your renamed Google Sheet tab
+ws_name = "Movies" if library_type == "Movies" else "TVShows"
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Use the encoded name to avoid the "Control Character" (space) error
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=raw_ws_name, ttl=0)
+    # Fetch Data
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0)
     
     if df is not None:
         df.columns = df.columns.str.strip()
-        item_col = df.columns[0] 
+        
+        # Determine column names based on library type
+        item_col = "Movie" if library_type == "Movies" else "Show"
+        if item_col not in df.columns:
+            item_col = df.columns[0] # Default to first column if header is missing
+            
         format_col = "Format" if "Format" in df.columns else None
         status_col = "Status" if "Status" in df.columns else None
         
@@ -95,7 +99,6 @@ try:
             for _, row in full_df.sort_values(item_col).iterrows(): display_item(row)
 
 except Exception as e:
-    st.error("⚠️ URL Character Error")
-    st.write(f"The app is struggling with the space in the name **'{raw_ws_name}'**.")
-    st.info("Try renaming your TV tab to 'TVShows' (no space) in Google Sheets if this persists.")
+    st.error("⚠️ Connection Error")
+    st.write(f"Ensure the tab in Google Sheets is named exactly **'{ws_name}'** with no spaces.")
     st.code(e)
