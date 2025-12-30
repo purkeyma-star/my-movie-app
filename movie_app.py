@@ -5,8 +5,12 @@ import random
 from thefuzz import process, fuzz
 import urllib.parse
 from datetime import datetime
+import pytz 
 
 st.set_page_config(page_title="Plex Library", page_icon="🎬", layout="wide")
+
+# --- TIMEZONE SETUP ---
+USER_TZ = pytz.timezone('US/Central') 
 
 # CSS Styling for quality badges and links
 st.markdown("""
@@ -38,9 +42,10 @@ st.markdown("""
         color: #FF4B4B;
     }
     .sync-text {
-        font-size: 10px;
+        font-size: 11px;
         color: #888;
         text-align: center;
+        margin-top: -10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -90,16 +95,16 @@ try:
             if st.button("🔄 Sync Data", use_container_width=True):
                 st.cache_data.clear()
                 st.rerun()
-            # The New Timestamp Logic
-            now = datetime.now().strftime("%I:%M %p")
-            st.markdown(f"<p class='sync-text'>Updated: {now}</p>", unsafe_allow_html=True)
+            # This now pulls the current time specifically for US/Central
+            local_now = datetime.now(USER_TZ).strftime("%I:%M %p")
+            st.markdown(f"<p class='sync-text'>Updated: {local_now} CT</p>", unsafe_allow_html=True)
         with h_col3:
             if st.button("🎲 Roulette", use_container_width=True):
                 st.session_state.random_pick = random.choice(movie_list)
                 st.balloons()
 
     if 'random_pick' in st.session_state:
-        st.success(f"✨ Suggested Selection:")
+        st.info(f"✨ Suggested Selection:")
         display_movie(st.session_state.random_pick)
 
     st.markdown("---")
