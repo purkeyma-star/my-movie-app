@@ -7,7 +7,7 @@ st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬")
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 
 # 2. Sidebar/Top Header for Stats
-st.title("🎬 Movie Manager")
+st.title("🎬 Plex Movie Manager")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
