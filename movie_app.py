@@ -1,12 +1,12 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-import pandas as pd  # This line fixes the 'pd' error!
+import pandas as pd
 import random
 from thefuzz import process, fuzz
 
 st.set_page_config(page_title="Plex Library", page_icon="🎬", layout="wide")
 
-# CSS Styling for the Quality Badges
+# CSS Styling for Quality Badges
 st.markdown("""
     <style>
     .badge-hd {
@@ -42,22 +42,20 @@ try:
     df = conn.read(spreadsheet=SHEET_URL, worksheet=0, ttl=0) 
     df.columns = df.columns.str.strip()
     
-    # Identify columns
     movie_col = "Movie" if "Movie" in df.columns else df.columns[0]
     format_col = "Format" if "Format" in df.columns else None
     
-    # Clean data and create a dictionary: {Movie Title: Format}
     full_df = df.dropna(subset=[movie_col])
     
+    # Create the dictionary for fast lookups
     if format_col:
-        # Link movie titles to their SD/HD format
         movie_dict = pd.Series(full_df[format_col].values, index=full_df[movie_col]).to_dict()
     else:
         movie_dict = {m: "SD" for m in full_df[movie_col]}
         
     movie_list = list(movie_dict.keys())
 
-    # --- HELPER FUNCTION TO DISPLAY MOVIES WITH BADGES ---
+    # --- HELPER FUNCTION TO DISPLAY MOVIES ---
     def display_movie(title):
         fmt = str(movie_dict.get(title, "SD")).upper().strip()
         badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
@@ -83,15 +81,12 @@ try:
     st.markdown("---")
 
     # --- TABS ---
-    tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 All"])
+    tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 Filter & Browse"])
 
     with tab1:
         search_query = st.text_input("Search box", label_visibility="collapsed", placeholder="Search title or speak...")
-        
         if search_query:
-            # Match titles that contain the search word
             exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
-            # Fuzzy match for typos
             fuzzy_results = process.extract(search_query, movie_list, limit=3, scorer=fuzz.token_sort_ratio)
             fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
 
@@ -99,24 +94,47 @@ try:
                 for m in sorted(exact_matches):
                     display_movie(m)
             elif fuzzy_matches:
-                st.write("Did you mean...")
+                st.write("Maybe you meant...")
                 for m in fuzzy_matches:
                     display_movie(m)
             else:
                 st.error("Not found.")
 
     with tab2:
-        # Show last 10 movies added (bottom of sheet)
         st.write("Recent additions:")
         for m in movie_list[-10:][::-1]:
             display_movie(m)
 
     with tab3:
-        # Searchable table for the full list
-        st.dataframe(full_df[[movie_col, format_col]] if format_col else full_df[[movie_col]], 
-                     use_container_width=True, hide_index=True)
+        # --- NEW FILTER BUTTONS ---
+        st.write("### Filter by Quality")
+        f_col1, f_col2, f_col3 = st.columns(3)
+        
+        # We use session_state to remember which filter is active
+        if 'filter' not in st.session_state:
+            st.session_state.filter = "All"
+
+        if f_col1.button("Show All", use_container_width=True):
+            st.session_state.filter = "All"
+        if f_col2.button("Only HD", use_container_width=True):
+            st.session_state.filter = "HD"
+        if f_col3.button("Only SD", use_container_width=True):
+            st.session_state.filter = "SD"
+
+        st.markdown(f"**Viewing: {st.session_state.filter}**")
+
+        # Filter the list based on selection
+        if st.session_state.filter == "HD":
+            filtered_list = [m for m in movie_list if "HD" in str(movie_dict.get(m, "")).upper()]
+        elif st.session_state.filter == "SD":
+            filtered_list = [m for m in movie_list if "HD" not in str(movie_dict.get(m, "")).upper()]
+        else:
+            filtered_list = movie_list
+
+        # Display the filtered list
+        for m in sorted(filtered_list):
+            display_movie(m)
 
 except Exception as e:
     st.error("Setup Error")
-    st.info("Ensure your Google Sheet has 'Movie' and 'Format' as the headers in Row 1.")
     st.code(e)
