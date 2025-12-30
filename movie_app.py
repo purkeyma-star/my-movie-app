@@ -7,159 +7,112 @@ import urllib.parse
 from datetime import datetime
 import pytz 
 
-st.set_page_config(page_title="Plex Library", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="Library Manager", page_icon="🎬", layout="wide")
 
-# --- TIMEZONE SETUP ---
+# --- TIMEZONE ---
 USER_TZ = pytz.timezone('US/Central') 
 
-# CSS Styling for quality badges and links
+# CSS Styling (Badges for HD/SD and Status)
 st.markdown("""
     <style>
-    .badge-hd {
-        background-color: #007BFF;
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-        margin-left: 10px;
-    }
-    .badge-sd {
-        background-color: #6C757D;
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-        margin-left: 10px;
-    }
-    .movie-link {
-        text-decoration: none;
-        color: #E0E0E0;
-        font-weight: bold;
-    }
-    .movie-link:hover {
-        color: #FF4B4B;
-    }
-    .sync-text {
-        font-size: 11px;
-        color: #888;
-        text-align: center;
-        margin-top: -10px;
-    }
+    .badge-hd { background-color: #007BFF; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px; }
+    .badge-sd { background-color: #6C757D; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px; }
+    .badge-status { background-color: #28A745; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
+    .movie-link { text-decoration: none; color: #E0E0E0; font-weight: bold; }
+    .movie-link:hover { color: #FF4B4B; }
+    .sync-text { font-size: 11px; color: #888; text-align: center; margin-top: -10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 1. Your Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
-
-st.title("🎬 Movie Manager Pro")
-
 conn = st.connection("gsheets", type=GSheetsConnection)
 
+# --- NAVIGATION ---
+st.title("🎬 Library Manager")
+library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
+
+# Choose worksheet based on selection
+worksheet_name = 0 if library_type == "Movies" else "TV Shows"
+
 try:
-    # 2. Fetch and Clean Data
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=0, ttl=0) 
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name, ttl=0) 
     df.columns = df.columns.str.strip()
     
-    movie_col = "Movie" if "Movie" in df.columns else df.columns[0]
+    # Identify dynamic columns
+    item_col = "Movie" if library_type == "Movies" else "Show"
     format_col = "Format" if "Format" in df.columns else None
+    status_col = "Status" if "Status" in df.columns else None
     
-    full_df = df.dropna(subset=[movie_col])
-    
-    if format_col:
-        movie_dict = pd.Series(full_df[format_col].values, index=full_df[movie_col]).to_dict()
-    else:
-        movie_dict = {m: "SD" for m in full_df[movie_col]}
-        
-    movie_list = list(movie_dict.keys())
+    full_df = df.dropna(subset=[item_col])
+    items_list = full_df[item_col].tolist()
 
-    # --- HELPER FUNCTION ---
-    def display_movie(title):
-        fmt = str(movie_dict.get(title, "SD")).upper().strip()
+    # --- HELPER DISPLAY ---
+    def display_item(row):
+        title = str(row[item_col])
+        fmt = str(row[format_col]).upper().strip() if format_col else "SD"
+        status = str(row[status_col]) if status_col else ""
+        
         badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
         search_term = urllib.parse.quote(title)
-        imdb_url = f"https://www.imdb.com/find?q={search_term}"
-        st.markdown(
-            f"🎞️ <a href='{imdb_url}' target='_blank' class='movie-link'>{title}</a> "
-            f"<span class='{badge_class}'>{fmt}</span>", 
-            unsafe_allow_html=True
-        )
+        site = "imdb" if library_type == "Movies" else "tvmaze"
+        url = f"https://www.imdb.com/find?q={search_term}"
+        
+        status_html = f"<span class='badge-status'>{status}</span>" if status else ""
+        st.markdown(f"🎞️ <a href='{url}' target='_blank' class='movie-link'>{title}</a> <span class='{badge_class}'>{fmt}</span> {status_html}", unsafe_allow_html=True)
 
-    # --- TOP HEADER SECTION ---
+    # --- TOP HEADER ---
     with st.container():
         h_col1, h_col2, h_col3 = st.columns([1, 1, 1])
         with h_col1:
-            st.metric("Total Library", len(movie_list))
+            st.metric(f"Total {library_type}", len(items_list))
         with h_col2:
-            if st.button("🔄 Sync Data", use_container_width=True):
+            if st.button("🔄 Sync", use_container_width=True):
                 st.cache_data.clear()
                 st.rerun()
-            # This now pulls the current time specifically for US/Central
             local_now = datetime.now(USER_TZ).strftime("%I:%M %p")
             st.markdown(f"<p class='sync-text'>Updated: {local_now} CT</p>", unsafe_allow_html=True)
         with h_col3:
             if st.button("🎲 Roulette", use_container_width=True):
-                st.session_state.random_pick = random.choice(movie_list)
+                st.session_state.random_pick = random.choice(items_list)
                 st.balloons()
 
     if 'random_pick' in st.session_state:
-        st.info(f"✨ Suggested Selection:")
-        display_movie(st.session_state.random_pick)
+        st.success(f"✨ Suggested {library_type}: {st.session_state.random_pick}")
 
     st.markdown("---")
 
-    # --- TABS FOR SEARCH & BROWSING ---
+    # --- TABS ---
     tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 Filter & Browse"])
 
     with tab1:
-        search_query = st.text_input("Search box", label_visibility="collapsed", placeholder="Voice or Text Search...")
+        search_query = st.text_input("Search", label_visibility="collapsed", placeholder=f"Search {library_type}...")
         if search_query:
-            exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
-            fuzzy_results = process.extract(search_query, movie_list, limit=3, scorer=fuzz.token_sort_ratio)
-            fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
-
-            if exact_matches:
-                for m in sorted(exact_matches):
-                    display_movie(m)
-            elif fuzzy_matches:
-                st.write("Maybe you meant...")
-                for m in fuzzy_matches:
-                    display_movie(m)
-            else:
-                st.error("Not found.")
+            results = full_df[full_df[item_col].str.contains(search_query, case=False, na=False)]
+            for _, row in results.iterrows():
+                display_item(row)
 
     with tab2:
-        st.write("Recent additions:")
-        for m in movie_list[-10:][::-1]:
-            display_movie(m)
+        recent = full_df.tail(10).iloc[::-1]
+        for _, row in recent.iterrows():
+            display_item(row)
 
     with tab3:
         st.write("### Filter by Quality")
         f_col1, f_col2, f_col3 = st.columns(3)
+        if 'f' not in st.session_state: st.session_state.f = "All"
+        if f_col1.button("All"): st.session_state.f = "All"
+        if f_col2.button("HD"): st.session_state.f = "HD"
+        if f_col3.button("SD"): st.session_state.f = "SD"
         
-        if 'filter' not in st.session_state:
-            st.session_state.filter = "All"
-
-        if f_col1.button("Show All", use_container_width=True):
-            st.session_state.filter = "All"
-        if f_col2.button("Only HD", use_container_width=True):
-            st.session_state.filter = "HD"
-        if f_col3.button("Only SD", use_container_width=True):
-            st.session_state.filter = "SD"
-
-        st.info(f"Viewing: **{st.session_state.filter}**")
-
-        if st.session_state.filter == "HD":
-            filtered_list = [m for m in movie_list if "HD" in str(movie_dict.get(m, "")).upper()]
-        elif st.session_state.filter == "SD":
-            filtered_list = [m for m in movie_list if "HD" not in str(movie_dict.get(m, "")).upper()]
-        else:
-            filtered_list = movie_list
-
-        for m in sorted(filtered_list):
-            display_movie(m)
+        filtered_df = full_df
+        if st.session_state.f == "HD":
+            filtered_df = full_df[full_df[format_col].str.contains("HD", na=False)]
+        elif st.session_state.f == "SD":
+            filtered_df = full_df[~full_df[format_col].str.contains("HD", na=False)]
+            
+        for _, row in filtered_df.sort_values(item_col).iterrows():
+            display_item(row)
 
 except Exception as e:
-    st.error("Error connecting to data.")
-    st.code(e)
+    st.error(f"Error loading {library_type} worksheet.")
+    st.info("Ensure you added a second tab named 'TV Shows' to your Google Sheet.")
