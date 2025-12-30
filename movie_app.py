@@ -3,10 +3,11 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import random
 from thefuzz import process, fuzz
+import urllib.parse
 
 st.set_page_config(page_title="Plex Library", page_icon="🎬", layout="wide")
 
-# CSS Styling for Quality Badges
+# CSS Styling for Quality Badges and Link Colors
 st.markdown("""
     <style>
     .badge-hd {
@@ -26,6 +27,14 @@ st.markdown("""
         font-size: 12px;
         font-weight: bold;
         margin-left: 10px;
+    }
+    .movie-link {
+        text-decoration: none;
+        color: #E0E0E0;
+        font-weight: bold;
+    }
+    .movie-link:hover {
+        color: #FF4B4B;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -47,7 +56,6 @@ try:
     
     full_df = df.dropna(subset=[movie_col])
     
-    # Create the dictionary for fast lookups
     if format_col:
         movie_dict = pd.Series(full_df[format_col].values, index=full_df[movie_col]).to_dict()
     else:
@@ -55,11 +63,21 @@ try:
         
     movie_list = list(movie_dict.keys())
 
-    # --- HELPER FUNCTION TO DISPLAY MOVIES ---
+    # --- HELPER FUNCTION TO DISPLAY MOVIES WITH LINKS ---
     def display_movie(title):
         fmt = str(movie_dict.get(title, "SD")).upper().strip()
         badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
-        st.markdown(f"🎞️ **{title}** <span class='{badge_class}'>{fmt}</span>", unsafe_allow_html=True)
+        
+        # Create a URL-safe search link for IMDb
+        search_term = urllib.parse.quote(title)
+        imdb_url = f"https://www.imdb.com/find?q={search_term}"
+        
+        # Display as a clickable title + badge
+        st.markdown(
+            f"🎞️ <a href='{imdb_url}' target='_blank' class='movie-link'>{title}</a> "
+            f"<span class='{badge_class}'>{fmt}</span>", 
+            unsafe_allow_html=True
+        )
 
     # --- TOP METRICS & QUICK ACTIONS ---
     col1, col2, col3 = st.columns(3)
@@ -75,7 +93,7 @@ try:
             st.balloons()
 
     if 'random_pick' in st.session_state:
-        st.info(f"✨ Suggested Selection:")
+        st.info(f"✨ Suggested Selection (Tap title for info):")
         display_movie(st.session_state.random_pick)
 
     st.markdown("---")
@@ -106,11 +124,10 @@ try:
             display_movie(m)
 
     with tab3:
-        # --- NEW FILTER BUTTONS ---
+        # --- FILTER BUTTONS ---
         st.write("### Filter by Quality")
         f_col1, f_col2, f_col3 = st.columns(3)
         
-        # We use session_state to remember which filter is active
         if 'filter' not in st.session_state:
             st.session_state.filter = "All"
 
@@ -123,7 +140,6 @@ try:
 
         st.markdown(f"**Viewing: {st.session_state.filter}**")
 
-        # Filter the list based on selection
         if st.session_state.filter == "HD":
             filtered_list = [m for m in movie_list if "HD" in str(movie_dict.get(m, "")).upper()]
         elif st.session_state.filter == "SD":
@@ -131,7 +147,6 @@ try:
         else:
             filtered_list = movie_list
 
-        # Display the filtered list
         for m in sorted(filtered_list):
             display_movie(m)
 
