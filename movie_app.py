@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import random
 from thefuzz import process, fuzz
-from streamlit_mic_recorder import mic_recorder
 
 st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬", layout="wide")
 
@@ -47,38 +46,39 @@ try:
     tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Recently Added", "📚 Browse All"])
 
     with tab1:
-    st.write("### 🎙️ Search by Voice or Text")
-    # We remove the mic-recorder and use a clear, big search box
-    search_query = st.text_input(
-        "Label", 
-        label_visibility="collapsed",
-        placeholder="Tap here, then tap the 🎙️ on your keyboard...",
-        key="main_search"
-    )
-    
-    if search_query:
-        # Fuzzy Matching stays the same—it catches the voice typos!
-        exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
-        fuzzy_results = process.extract(search_query, movie_list, limit=5, scorer=fuzz.token_sort_ratio)
-        fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
+        st.subheader("🎙️ Voice & Text Search")
+        # Optimized search box for iPhone dictation
+        search_query = st.text_input(
+            "Search box", 
+            label_visibility="collapsed",
+            placeholder="Tap here, then use the 🎙️ on your keyboard..."
+        )
+        
+        if search_query:
+            # Fuzzy Matching Logic
+            exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
+            fuzzy_results = process.extract(search_query, movie_list, limit=5, scorer=fuzz.token_sort_ratio)
+            fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
 
-        if exact_matches:
-            st.success(f"✅ Found:")
-            for m in sorted(exact_matches):
-                st.write(f"🎞️ **{m}**")
-        elif fuzzy_matches:
-            st.warning(f"⚠️ Did you mean...?")
-            for m in fuzzy_matches:
-                st.info(f"🍿 {m}")
-        else:
-            st.error(f"❌ '{search_query}' not found.")
+            if exact_matches:
+                st.success(f"✅ Found in your collection:")
+                for m in sorted(exact_matches):
+                    st.write(f"🍿 **{m}**")
+            elif fuzzy_matches:
+                st.warning(f"⚠️ Did you mean one of these?")
+                for m in fuzzy_matches:
+                    st.info(f"🍿 {m}")
+            else:
+                st.error(f"❌ '{search_query}' not found.")
 
     with tab2:
+        st.subheader("Newest Acquisitions")
         recent_movies = movie_list[-5:][::-1]
         for i, m in enumerate(recent_movies):
             st.write(f"{i+1}. **{m}**")
 
     with tab3:
+        st.subheader("Complete A-Z List")
         sorted_list = sorted(movie_list)
         st.dataframe(sorted_list, use_container_width=True, hide_index=True)
 
