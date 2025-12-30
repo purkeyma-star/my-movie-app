@@ -31,7 +31,7 @@ st.markdown("""
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 
-st.title("🎬 Movie Manager Pro")
+st.title("🎬 Plex Movie Manager Pro")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
