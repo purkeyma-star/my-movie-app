@@ -4,10 +4,11 @@ import pandas as pd
 import random
 from thefuzz import process, fuzz
 import urllib.parse
+from datetime import datetime
 
 st.set_page_config(page_title="Plex Library", page_icon="🎬", layout="wide")
 
-# CSS Styling for Quality Badges and Link Colors
+# CSS Styling for quality badges and links
 st.markdown("""
     <style>
     .badge-hd {
@@ -36,10 +37,15 @@ st.markdown("""
     .movie-link:hover {
         color: #FF4B4B;
     }
+    .sync-text {
+        font-size: 10px;
+        color: #888;
+        text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 1. Your URL
+# 1. Your Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 
 st.title("🎬 Movie Manager Pro")
@@ -47,7 +53,7 @@ st.title("🎬 Movie Manager Pro")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # 2. Load Data
+    # 2. Fetch and Clean Data
     df = conn.read(spreadsheet=SHEET_URL, worksheet=0, ttl=0) 
     df.columns = df.columns.str.strip()
     
@@ -63,46 +69,46 @@ try:
         
     movie_list = list(movie_dict.keys())
 
-    # --- HELPER FUNCTION TO DISPLAY MOVIES WITH LINKS ---
+    # --- HELPER FUNCTION ---
     def display_movie(title):
         fmt = str(movie_dict.get(title, "SD")).upper().strip()
         badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
-        
-        # Create a URL-safe search link for IMDb
         search_term = urllib.parse.quote(title)
         imdb_url = f"https://www.imdb.com/find?q={search_term}"
-        
-        # Display as a clickable title + badge
         st.markdown(
             f"🎞️ <a href='{imdb_url}' target='_blank' class='movie-link'>{title}</a> "
             f"<span class='{badge_class}'>{fmt}</span>", 
             unsafe_allow_html=True
         )
 
-    # --- TOP METRICS & QUICK ACTIONS ---
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Library", len(movie_list))
-    with col2:
-        if st.button("🔄 Sync", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-    with col3:
-        if st.button("🎲 Roulette", use_container_width=True):
-            st.session_state.random_pick = random.choice(movie_list)
-            st.balloons()
+    # --- TOP HEADER SECTION ---
+    with st.container():
+        h_col1, h_col2, h_col3 = st.columns([1, 1, 1])
+        with h_col1:
+            st.metric("Total Library", len(movie_list))
+        with h_col2:
+            if st.button("🔄 Sync Data", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
+            # The New Timestamp Logic
+            now = datetime.now().strftime("%I:%M %p")
+            st.markdown(f"<p class='sync-text'>Updated: {now}</p>", unsafe_allow_html=True)
+        with h_col3:
+            if st.button("🎲 Roulette", use_container_width=True):
+                st.session_state.random_pick = random.choice(movie_list)
+                st.balloons()
 
     if 'random_pick' in st.session_state:
-        st.info(f"✨ Suggested Selection (Tap title for info):")
+        st.success(f"✨ Suggested Selection:")
         display_movie(st.session_state.random_pick)
 
     st.markdown("---")
 
-    # --- TABS ---
+    # --- TABS FOR SEARCH & BROWSING ---
     tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 Filter & Browse"])
 
     with tab1:
-        search_query = st.text_input("Search box", label_visibility="collapsed", placeholder="Search title or speak...")
+        search_query = st.text_input("Search box", label_visibility="collapsed", placeholder="Voice or Text Search...")
         if search_query:
             exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
             fuzzy_results = process.extract(search_query, movie_list, limit=3, scorer=fuzz.token_sort_ratio)
@@ -124,7 +130,6 @@ try:
             display_movie(m)
 
     with tab3:
-        # --- FILTER BUTTONS ---
         st.write("### Filter by Quality")
         f_col1, f_col2, f_col3 = st.columns(3)
         
@@ -138,7 +143,7 @@ try:
         if f_col3.button("Only SD", use_container_width=True):
             st.session_state.filter = "SD"
 
-        st.markdown(f"**Viewing: {st.session_state.filter}**")
+        st.info(f"Viewing: **{st.session_state.filter}**")
 
         if st.session_state.filter == "HD":
             filtered_list = [m for m in movie_list if "HD" in str(movie_dict.get(m, "")).upper()]
@@ -151,5 +156,5 @@ try:
             display_movie(m)
 
 except Exception as e:
-    st.error("Setup Error")
+    st.error("Error connecting to data.")
     st.code(e)
