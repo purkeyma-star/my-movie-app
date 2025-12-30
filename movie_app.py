@@ -1,41 +1,56 @@
-dimport streamlit as st
+import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
-# 1. App setup
 st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬")
+
+# 1. THE URL - Paste your link between the quotes below
+# Make sure it ends in /edit or /view
+SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_ACTUAL_ID_HERE/edit"
+
 st.title("🎬 My Movie Collection Manager")
-st.write("Search your live Google Sheet to see if you own a title.")
 
-# 2. Connect to Google Sheets
-# Replace the URL below with your actual Google Sheet URL
-url = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit?usp=sharing"
-
+# 2. Connection Logic
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Specifically target the "Have Movies" sheet
-    df = conn.read(spreadsheet=url, worksheet="Have Movies")
+    # We are using the URL directly here to bypass Secret issues for now
+    df = conn.read(spreadsheet=SHEET_URL, worksheet="Have Movies")
     
-    # Identify the correct column for movie titles
-    # Assumes your column is named "Movie" as seen in your sheet data
-    column_name = "Movie" if "Movie" in df.columns else df.columns[0]
-    movie_list = df[column_name].astype(str).tolist()
+    # Clean up column names (removes hidden spaces)
+    df.columns = df.columns.str.strip()
     
-    st.success(f"Connected! Loaded {len(movie_list)} movies from 'Have Movies'.")
+    # Look for the movie column
+    if "Movie" in df.columns:
+        movie_list = df["Movie"].dropna().astype(str).tolist()
+    else:
+        # If "Movie" isn't found, use the very first column
+        movie_list = df.iloc[:, 0].dropna().astype(str).tolist()
+    
+    st.success(f"✅ Connected! Found {len(movie_list)} movies.")
 
     # 3. Search Interface
-    search_query = st.text_input("Enter a movie title to search:", placeholder="e.g. Aliens")
+    search_query = st.text_input("Search your collection:", placeholder="Enter movie title...")
 
     if search_query:
-        results = [movie for movie in movie_list if search_query.lower() in movie.lower()]
+        # This finds matches even if they are partial
+        results = [m for m in movie_list if search_query.lower() in m.lower()]
 
         if results:
             st.balloons()
-            st.success(f"✅ Yes! You own **{len(results)}** match(es):")
-            for result in results:
-                st.write(f"- {result}")
+            st.write(f"You own **{len(results)}** match(es):")
+            for r in results:
+                st.info(f"🍿 {r}")
         else:
-            st.error(f"❌ No, '{search_query}' was not found in your collection.")
+            st.error(f"❌ '{search_query}' not found.")
 
 except Exception as e:
-    st.error("Could not connect to the Google Sheet. Make sure the URL is correct and the sheet is shared.")
+    st.error("🔌 Connection Error")
+    st.info("Try these 3 things:")
+    st.write("1. **Sharing:** Click 'Share' in Google Sheets and set to 'Anyone with link'.")
+    st.write("2. **Tab Name:** Ensure the tab at the bottom is named exactly **Have Movies**.")
+    st.write("3. **URL:** Ensure the link in the code is your browser's address bar link.")
+    
+    # This shows the REAL technical error to help us fix it
+    with st.expander("See technical error details"):
+        st.code(e)
