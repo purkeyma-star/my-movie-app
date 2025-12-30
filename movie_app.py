@@ -32,22 +32,27 @@ st.title("🎬 Library Manager")
 # Library Selector
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# FIX: We use "TVShows" (no space) to match your renamed Google Sheet tab
-ws_name = "Movies" if library_type == "Movies" else "TVShows"
+# --- THE STABILITY FIX: GID NUMBERS ---
+# Replace '0' with the gid from your Movies URL
+# Replace '123456789' with the gid from your TVShows URL
+if library_type == "Movies":
+    target_gid = 793352327  
+else:
+    target_gid = 446778614 # Change this to your TVShows gid found in the URL
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Fetch Data
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0)
+    # We fetch by worksheet ID (gid) to avoid name-mismatch errors
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=target_gid, ttl=0)
     
     if df is not None:
         df.columns = df.columns.str.strip()
         
-        # Determine column names based on library type
+        # Column Logic
         item_col = "Movie" if library_type == "Movies" else "Show"
         if item_col not in df.columns:
-            item_col = df.columns[0] # Default to first column if header is missing
+            item_col = df.columns[0]
             
         format_col = "Format" if "Format" in df.columns else None
         status_col = "Status" if "Status" in df.columns else None
@@ -100,5 +105,5 @@ try:
 
 except Exception as e:
     st.error("⚠️ Connection Error")
-    st.write(f"Ensure the tab in Google Sheets is named exactly **'{ws_name}'** with no spaces.")
+    st.write(f"Ensure your Google Sheet is shared as 'Anyone with the link can view'.")
     st.code(e)
