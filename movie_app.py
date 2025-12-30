@@ -47,42 +47,31 @@ try:
     tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Recently Added", "📚 Browse All"])
 
     with tab1:
-        st.write("Search by typing or tapping the mic below:")
-        
-        # --- VOICE SEARCH COMPONENT ---
-        audio_prompt = mic_recorder(
-            start_prompt="🎙️ Start Voice Search",
-            stop_prompt="🛑 Stop & Search",
-            key='recorder'
-        )
-        
-        # Capture text from typing
-        typed_query = st.text_input("Type title here:", placeholder="Search...")
-        
-        # Determine the final query (Voice text or Typed text)
-        final_query = ""
-        if audio_prompt and audio_prompt.get('text'):
-            final_query = audio_prompt['text']
-            st.info(f"Searching for: **{final_query}**")
-        elif typed_query:
-            final_query = typed_query
+    st.write("### 🎙️ Search by Voice or Text")
+    # We remove the mic-recorder and use a clear, big search box
+    search_query = st.text_input(
+        "Label", 
+        label_visibility="collapsed",
+        placeholder="Tap here, then tap the 🎙️ on your keyboard...",
+        key="main_search"
+    )
+    
+    if search_query:
+        # Fuzzy Matching stays the same—it catches the voice typos!
+        exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
+        fuzzy_results = process.extract(search_query, movie_list, limit=5, scorer=fuzz.token_sort_ratio)
+        fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
 
-        if final_query:
-            # Fuzzy Matching Logic
-            exact_matches = [m for m in movie_list if final_query.lower() in m.lower()]
-            fuzzy_results = process.extract(final_query, movie_list, limit=5, scorer=fuzz.token_sort_ratio)
-            fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
-
-            if exact_matches:
-                st.success(f"✅ Found in your collection:")
-                for m in sorted(exact_matches):
-                    st.write(f"🍿 **{m}**")
-            elif fuzzy_matches:
-                st.warning(f"⚠️ Did you mean one of these?")
-                for m in fuzzy_matches:
-                    st.info(f"🍿 {m}")
-            else:
-                st.error(f"❌ '{final_query}' not found.")
+        if exact_matches:
+            st.success(f"✅ Found:")
+            for m in sorted(exact_matches):
+                st.write(f"🍿 **{m}**")
+        elif fuzzy_matches:
+            st.warning(f"⚠️ Did you mean...?")
+            for m in fuzzy_matches:
+                st.info(f"🍿 {m}")
+        else:
+            st.error(f"❌ '{search_query}' not found.")
 
     with tab2:
         recent_movies = movie_list[-5:][::-1]
