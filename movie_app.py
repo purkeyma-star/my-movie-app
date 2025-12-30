@@ -12,7 +12,7 @@ st.set_page_config(page_title="Library Manager", page_icon="🎬", layout="wide"
 # --- TIMEZONE ---
 USER_TZ = pytz.timezone('US/Central') 
 
-# CSS Styling for UI
+# CSS Styling
 st.markdown("""
     <style>
     .badge-hd { background-color: #007BFF; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px; }
@@ -24,26 +24,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# 1. YOUR GOOGLE SHEET URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 st.title("🎬 Library Manager")
 
 # Library Selector
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# THE FIX: Using numbers (0 and 1) instead of names to avoid the 400 error
-worksheet_id = 0 if library_type == "Movies" else 1
+# Using exact names is actually more stable for the 400 error than indexes
+ws_name = "Movies" if library_type == "Movies" else "TV Shows"
+
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Read the worksheet by its position (Index)
-    # ttl=0 is vital here to force a fresh look at the Google Sheet
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_id, ttl=0)
+    # Use the simplest possible read command
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0)
     
     if df is not None:
         df.columns = df.columns.str.strip()
-        
-        # Use whatever is in the first column as the title
         item_col = df.columns[0] 
         format_col = "Format" if "Format" in df.columns else None
         status_col = "Status" if "Status" in df.columns else None
@@ -96,6 +95,6 @@ try:
 
 except Exception as e:
     st.error("⚠️ Connection Error (400)")
-    st.write(f"The app is trying to load tab number {worksheet_id}.")
-    st.info("Check: Does your Google Sheet have at least two tabs at the bottom?")
+    st.write(f"The app cannot find the tab named **'{ws_name}'**.")
+    st.info("Check: Is the Google Sheet shared as 'Anyone with the link can view'?")
     st.code(e)
