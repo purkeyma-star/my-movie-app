@@ -65,7 +65,7 @@ try:
         if exact_matches:
             st.success(f"✅ Found:")
             for m in sorted(exact_matches):
-                st.write(f"🍿 **{m}**")
+                st.write(f"🎞️ **{m}**")
         elif fuzzy_matches:
             st.warning(f"⚠️ Did you mean...?")
             for m in fuzzy_matches:
