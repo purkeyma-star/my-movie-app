@@ -6,7 +6,7 @@ st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬")
 
 # 1. THE URL - Paste your link between the quotes below
 # Make sure it ends in /edit or /view
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit?usp=sharing"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 
 st.title("🎬 My Movie Collection Manager")
 
