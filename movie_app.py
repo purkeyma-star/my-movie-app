@@ -8,7 +8,7 @@ st.write("Search your live Google Sheet to see if you own a title.")
 
 # 2. Connect to Google Sheets
 # Replace the URL below with your actual Google Sheet URL
-url = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit?usp=sharing"
+url = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/"
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
