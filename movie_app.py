@@ -32,14 +32,15 @@ st.title("🎬 Library Manager")
 # Library Selector
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# Using exact names is actually more stable for the 400 error than indexes
-ws_name = "Movies" if library_type == "Movies" else "TV Shows"
+# THE FIX: We use urllib.parse.quote to turn "TV Shows" into "TV%20Shows"
+raw_ws_name = "Movies" if library_type == "Movies" else "TV Shows"
+encoded_ws_name = urllib.parse.quote(raw_ws_name)
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Use the simplest possible read command
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0)
+    # Use the encoded name to avoid the "Control Character" (space) error
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=raw_ws_name, ttl=0)
     
     if df is not None:
         df.columns = df.columns.str.strip()
@@ -94,7 +95,7 @@ try:
             for _, row in full_df.sort_values(item_col).iterrows(): display_item(row)
 
 except Exception as e:
-    st.error("⚠️ Connection Error (400)")
-    st.write(f"The app cannot find the tab named **'{ws_name}'**.")
-    st.info("Check: Is the Google Sheet shared as 'Anyone with the link can view'?")
+    st.error("⚠️ URL Character Error")
+    st.write(f"The app is struggling with the space in the name **'{raw_ws_name}'**.")
+    st.info("Try renaming your TV tab to 'TVShows' (no space) in Google Sheets if this persists.")
     st.code(e)
