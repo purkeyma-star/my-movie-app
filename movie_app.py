@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬")
+st.set_page_config(page_title="Plex Movie Collection on DS224+", page_icon="🎬")
 
 # 1. Your URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
