@@ -3,28 +3,64 @@ from streamlit_gsheets import GSheetsConnection
 import random
 from thefuzz import process, fuzz
 
-st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="Plex Library", page_icon="🎬", layout="wide")
 
-# 1. Your URL
+# Styling for the Quality Badges
+st.markdown("""
+    <style>
+    .badge-hd {
+        background-color: #007BFF;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 10px;
+    }
+    .badge-sd {
+        background-color: #6C757D;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 
-st.title("🎬 Plex Movie Manager Pro")
+st.title("🎬 Movie Manager Pro")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 try:
-    # Fetch data
+    # 1. Load Data
     df = conn.read(spreadsheet=SHEET_URL, worksheet=0, ttl=0) 
     df.columns = df.columns.str.strip()
-    col = "Movie" if "Movie" in df.columns else df.columns[0]
-    movie_list = df[col].dropna().astype(str).tolist()
     
-    # --- TOP METRICS & ACTIONS ---
+    # Identify columns
+    movie_col = "Movie" if "Movie" in df.columns else df.columns[0]
+    format_col = "Format" if "Format" in df.columns else None
+    
+    # Clean data and create a dictionary for easy lookup: {Movie Title: Format}
+    full_df = df.dropna(subset=[movie_col])
+    movie_dict = pd.Series(full_df[format_col].values, index=full_df[movie_col]).to_dict() if format_col else {m: "Unknown" for m in full_df[movie_col]}
+    movie_list = list(movie_dict.keys())
+
+    # --- FUNCTIONS ---
+    def display_movie(title):
+        fmt = str(movie_dict.get(title, "SD")).upper()
+        badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
+        st.markdown(f"🎞️ **{title}** <span class='{badge_class}'>{fmt}</span>", unsafe_allow_html=True)
+
+    # --- TOP METRICS ---
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Library", len(movie_list))
     with col2:
-        if st.button("🔄 Sync Library", use_container_width=True):
+        if st.button("🔄 Sync", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     with col3:
@@ -33,55 +69,43 @@ try:
             st.balloons()
 
     if 'random_pick' in st.session_state:
-        st.markdown(f"""
-        <div style="background-color:#1E1E1E; padding:20px; border-radius:10px; border: 2px solid #FF4B4B; text-align:center; margin-bottom:20px;">
-            <p style="margin:0; color:#AAAAAA; font-size:14px; text-transform:uppercase;">Tonight's Suggestion</p>
-            <h2 style="margin:0; color:#FFFFFF;">{st.session_state.random_pick}</h2>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(f"✨ Suggested Selection:")
+        display_movie(st.session_state.random_pick)
 
     st.markdown("---")
 
     # --- TABS ---
-    tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Recently Added", "📚 Browse All"])
+    tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 All"])
 
     with tab1:
-        st.subheader("🎙️ Voice & Text Search")
-        # Optimized search box for iPhone dictation
-        search_query = st.text_input(
-            "Search box", 
-            label_visibility="collapsed",
-            placeholder="Tap here, then use the 🎙️ on your keyboard..."
-        )
+        search_query = st.text_input("Search box", label_visibility="collapsed", placeholder="Search title or speak...")
         
         if search_query:
-            # Fuzzy Matching Logic
             exact_matches = [m for m in movie_list if search_query.lower() in m.lower()]
-            fuzzy_results = process.extract(search_query, movie_list, limit=5, scorer=fuzz.token_sort_ratio)
+            fuzzy_results = process.extract(search_query, movie_list, limit=3, scorer=fuzz.token_sort_ratio)
             fuzzy_matches = [match[0] for match in fuzzy_results if match[1] >= 75 and match[0] not in exact_matches]
 
             if exact_matches:
-                st.success(f"✅ Found in your collection:")
                 for m in sorted(exact_matches):
-                    st.write(f"🍿 **{m}**")
+                    display_movie(m)
             elif fuzzy_matches:
-                st.warning(f"⚠️ Did you mean one of these?")
+                st.write("Did you mean...")
                 for m in fuzzy_matches:
-                    st.info(f"🍿 {m}")
+                    display_movie(m)
             else:
-                st.error(f"❌ '{search_query}' not found.")
+                st.error("Not found.")
 
     with tab2:
-        st.subheader("Newest Acquisitions")
-        recent_movies = movie_list[-5:][::-1]
-        for i, m in enumerate(recent_movies):
-            st.write(f"{i+1}. **{m}**")
+        # Show last 10 movies added
+        for m in movie_list[-10:][::-1]:
+            display_movie(m)
 
     with tab3:
-        st.subheader("Complete A-Z List")
-        sorted_list = sorted(movie_list)
-        st.dataframe(sorted_list, use_container_width=True, hide_index=True)
+        # Searchable table for the full list
+        st.dataframe(full_df[[movie_col, format_col]] if format_col else full_df[[movie_col]], 
+                     use_container_width=True, hide_index=True)
 
 except Exception as e:
-    st.error("Connection Error")
+    st.error("Setup Error")
+    st.info("Make sure your Google Sheet has a 'Movie' column and a 'Format' column.")
     st.code(e)
