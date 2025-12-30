@@ -7,7 +7,7 @@ st.set_page_config(page_title="Plex Movie Collection", page_icon="🎬")
 # 1. Your URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 
-st.title("🎬 Plex Movie Manager on DS224+")
+st.title("🎬 Plex Movie Manager")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -31,16 +31,17 @@ try:
         st.cache_data.clear()
         st.rerun()
 
-    # --- NEW FEATURE: RANDOM MOVIE PICKER ---
+    # --- RANDOM MOVIE PICKER ---
     if random_btn:
         random_choice = random.choice(movie_list)
         st.balloons()
+        # Corrected the keyword argument here
         st.markdown(f"""
         <div style="background-color:#f0f2f6; padding:20px; border-radius:10px; border-left: 5px solid #ff4b4b; text-align:center;">
             <p style="margin:0; color:#555; font-size:14px; text-transform:uppercase;">Tonight's Selection:</p>
             <h2 style="margin:0; color:#31333F;">🍿 {random_choice}</h2>
         </div>
-        """, unsafe_content_allowed=True)
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -53,7 +54,7 @@ try:
         if results:
             st.success(f"Found {len(results)} match(es):")
             for r in results:
-                st.info(f"🎞️ {r}")
+                st.info(f"🍿 {r}")
         else:
             st.error(f"❌ You don't own '{search_query}'.")
 
