@@ -64,7 +64,7 @@ try:
             if exact_matches:
                 st.success(f"✅ Found in your collection:")
                 for m in sorted(exact_matches):
-                    st.write(f"🎞️ **{m}**")
+                    st.write(f"🍿 **{m}**")
                 
                 if fuzzy_matches:
                     with st.expander("Similar sounding titles:"):
