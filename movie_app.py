@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import random
-from thefuzz import process, fuzz
 import urllib.parse
 from datetime import datetime
 import pytz 
@@ -12,15 +11,15 @@ st.set_page_config(page_title="Library Manager", page_icon="🎬", layout="wide"
 # --- TIMEZONE ---
 USER_TZ = pytz.timezone('US/Central') 
 
-# CSS Styling - Added Grid Styles
+# CSS Styling
 st.markdown("""
     <style>
     .badge-hd { background-color: #007BFF; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px; }
     .badge-sd { background-color: #6C757D; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px; }
-    .badge-status { background-color: #28A745; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
     .movie-link { text-decoration: none; color: #E0E0E0; font-weight: bold; }
     .movie-link:hover { color: #FF4B4B; }
     .sync-text { font-size: 11px; color: #888; text-align: center; margin-top: -10px; }
+    .not-found { padding: 20px; background-color: #1E1E1E; border-left: 5px solid #FF4B4B; border-radius: 5px; color: #E0E0E0; margin-top: 10px; }
     
     /* Season Grid Styles */
     .season-container { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0 15px 30px; }
@@ -36,7 +35,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 st.title("🎬 Library Manager")
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# YOUR GIDs
+# YOUR LOCKED GIDs
 if library_type == "Movies":
     target_gid = 793352327  
 else:
@@ -50,7 +49,6 @@ try:
     if item_col not in df.columns: item_col = df.columns[0]
     
     format_col = "Format" if "Format" in df.columns else None
-    status_col = "Status" if "Status" in df.columns else None
     owned_col = "Seasons Owned" if "Seasons Owned" in df.columns else None
     total_col = "Total Seasons" if "Total Seasons" in df.columns else None
     
@@ -59,30 +57,25 @@ try:
     def display_item(row):
         title = str(row[item_col])
         fmt = str(row[format_col]).upper().strip() if format_col and not pd.isna(row[format_col]) else "SD"
-        status = str(row[status_col]) if status_col and not pd.isna(row[status_col]) else ""
         badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
         url = f"https://www.imdb.com/find?q={urllib.parse.quote(title)}"
         
         st.markdown(f"🎞️ <a href='{url}' target='_blank' class='movie-link'>{title}</a> <span class='{badge_class}'>{fmt}</span>", unsafe_allow_html=True)
         
-        # Grid Display for TV Shows
         if library_type == "TV Shows" and owned_col and total_col:
             owned_raw = str(row[owned_col]) if not pd.isna(row[owned_col]) else ""
             total_val = row[total_col]
-            
             if not pd.isna(total_val) and total_val != "":
                 try:
                     total_seasons = int(float(total_val))
                     owned_list = [int(s.strip()) for s in str(owned_raw).split(',') if s.strip().isdigit()]
-                    
                     grid_html = '<div class="season-container">'
                     for s in range(1, total_seasons + 1):
                         cl = "s-owned" if s in owned_list else "s-missing"
                         grid_html += f'<div class="s-box {cl}">{s}</div>'
                     grid_html += '</div>'
                     st.markdown(grid_html, unsafe_allow_html=True)
-                except:
-                    pass
+                except: pass
 
     # --- TOP HEADER ---
     with st.container():
@@ -103,10 +96,25 @@ try:
     t1, t2, t3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 All"])
     
     with t1:
-        search_query = st.text_input("Search", placeholder="Find a title...")
+        search_query = st.text_input("Search", placeholder=f"Search for a {library_type[:-1].lower()}...")
         if search_query:
             results = full_df[full_df[item_col].str.contains(search_query, case=False, na=False)]
-            for _, row in results.iterrows(): display_item(row)
+            
+            # THE FIX: Check if we have results
+            if not results.empty:
+                for _, row in results.iterrows(): 
+                    display_item(row)
+            else:
+                # Stylish "Not Found" UI
+                st.markdown(f"""
+                    <div class="not-found">
+                        <h4>🚫 Not in Collection</h4>
+                        <p>I couldn't find <b>"{search_query}"</b> in your {library_type.lower()} list.</p>
+                        <hr style="border: 0.5px solid #444;">
+                        <small>Check for typos or add this title to your Google Sheet and tap <b>Sync</b>.</small>
+                    </div>
+                """, unsafe_allow_html=True)
+
     with t2:
         for _, row in full_df.tail(10).iloc[::-1].iterrows(): display_item(row)
     with t3:
