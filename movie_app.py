@@ -12,7 +12,7 @@ st.set_page_config(page_title="Library Manager", page_icon="🎬", layout="wide"
 # --- TIMEZONE ---
 USER_TZ = pytz.timezone('US/Central') 
 
-# CSS Styling (Badges for HD/SD and Status)
+# CSS Styling
 st.markdown("""
     <style>
     .badge-hd { background-color: #007BFF; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px; }
@@ -27,36 +27,36 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- NAVIGATION ---
 st.title("🎬 Library Manager")
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
-# Choose worksheet based on selection
-worksheet_name = 0 if library_type == "Movies" else "TV Shows"
+# FIXED: Using numbers (0 for first tab, 1 for second tab) is more reliable than names
+worksheet_index = 0 if library_type == "Movies" else 1
 
 try:
-    df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name, ttl=0) 
+    # Read the sheet using the index
+    df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_index, ttl=0) 
     df.columns = df.columns.str.strip()
     
-    # Identify dynamic columns
-    item_col = "Movie" if library_type == "Movies" else "Show"
+    # Identify columns based on which library is active
+    if library_type == "Movies":
+        item_col = "Movie" if "Movie" in df.columns else df.columns[0]
+    else:
+        item_col = "Show" if "Show" in df.columns else df.columns[0]
+        
     format_col = "Format" if "Format" in df.columns else None
     status_col = "Status" if "Status" in df.columns else None
     
     full_df = df.dropna(subset=[item_col])
     items_list = full_df[item_col].tolist()
 
-    # --- HELPER DISPLAY ---
     def display_item(row):
         title = str(row[item_col])
         fmt = str(row[format_col]).upper().strip() if format_col else "SD"
-        status = str(row[status_col]) if status_col else ""
-        
+        status = str(row[status_col]) if status_col and not pd.isna(row[status_col]) else ""
         badge_class = "badge-hd" if "HD" in fmt else "badge-sd"
         search_term = urllib.parse.quote(title)
-        site = "imdb" if library_type == "Movies" else "tvmaze"
         url = f"https://www.imdb.com/find?q={search_term}"
-        
         status_html = f"<span class='badge-status'>{status}</span>" if status else ""
         st.markdown(f"🎞️ <a href='{url}' target='_blank' class='movie-link'>{title}</a> <span class='{badge_class}'>{fmt}</span> {status_html}", unsafe_allow_html=True)
 
@@ -77,42 +77,29 @@ try:
                 st.balloons()
 
     if 'random_pick' in st.session_state:
-        st.success(f"✨ Suggested {library_type}: {st.session_state.random_pick}")
+        st.info(f"✨ Suggested {library_type}: {st.session_state.random_pick}")
 
     st.markdown("---")
 
     # --- TABS ---
-    tab1, tab2, tab3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 Filter & Browse"])
+    t1, t2, t3 = st.tabs(["🔍 Search", "🆕 Newest", "📚 All"])
 
-    with tab1:
+    with t1:
         search_query = st.text_input("Search", label_visibility="collapsed", placeholder=f"Search {library_type}...")
         if search_query:
             results = full_df[full_df[item_col].str.contains(search_query, case=False, na=False)]
             for _, row in results.iterrows():
                 display_item(row)
 
-    with tab2:
-        recent = full_df.tail(10).iloc[::-1]
-        for _, row in recent.iterrows():
+    with t2:
+        for _, row in full_df.tail(10).iloc[::-1].iterrows():
             display_item(row)
 
-    with tab3:
-        st.write("### Filter by Quality")
-        f_col1, f_col2, f_col3 = st.columns(3)
-        if 'f' not in st.session_state: st.session_state.f = "All"
-        if f_col1.button("All"): st.session_state.f = "All"
-        if f_col2.button("HD"): st.session_state.f = "HD"
-        if f_col3.button("SD"): st.session_state.f = "SD"
-        
-        filtered_df = full_df
-        if st.session_state.f == "HD":
-            filtered_df = full_df[full_df[format_col].str.contains("HD", na=False)]
-        elif st.session_state.f == "SD":
-            filtered_df = full_df[~full_df[format_col].str.contains("HD", na=False)]
-            
-        for _, row in filtered_df.sort_values(item_col).iterrows():
+    with t3:
+        for _, row in full_df.sort_values(item_col).iterrows():
             display_item(row)
 
 except Exception as e:
-    st.error(f"Error loading {library_type} worksheet.")
-    st.info("Ensure you added a second tab named 'TV Shows' to your Google Sheet.")
+    st.error("Could not find the data.")
+    st.write("Please ensure your Google Sheet has at least TWO tabs at the bottom.")
+    st.code(e)
