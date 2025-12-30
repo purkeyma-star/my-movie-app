@@ -12,7 +12,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 try:
     # We use worksheet=0 to avoid the "Have Movies" space error
     # This automatically picks the FIRST tab in your Google Sheet
-    df = conn.read(spreadsheet=SHEET_URL, ttl=2) 
+    df = conn.read(spreadsheet=SHEET_URL, ttl=0) 
     
     # Identify the column
     df.columns = df.columns.str.strip()
