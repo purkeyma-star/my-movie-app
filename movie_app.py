@@ -6,7 +6,7 @@ import urllib.parse
 from datetime import datetime
 import pytz 
 
-st.set_page_config(page_title="Library Manager", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="Plex Library Manager", page_icon="🎬", layout="wide")
 
 # --- TIMEZONE ---
 USER_TZ = pytz.timezone('US/Central') 
