@@ -32,7 +32,7 @@ st.markdown("""
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1-AtYz6Y6-wVls2EIuczq8g0RkEHnF0n8VAdjcpiK4dE/edit"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-st.title("🎬 Library Manager")
+st.title("🎬 Plex Library Manager")
 library_type = st.radio("Select Library", ["Movies", "TV Shows"], horizontal=True)
 
 # YOUR LOCKED GIDs
